@@ -16,7 +16,6 @@
         Lampa.Storage.set('music_api_token', value);
     }
 
-    // Виклик екранної клавіатури Lampa для введення токена
     function promptToken(callback) {
         Lampa.Input.edit({
             title: 'Введіть API Токен',
@@ -29,7 +28,6 @@
         });
     }
 
-    // Додавання вкладки в системні Налаштування Lampa
     function initSettings() {
         if (Lampa.SettingsApi) {
             Lampa.SettingsApi.addComponent({
@@ -57,7 +55,7 @@
     }
 
     // =============================================================
-    // 2. СТИЛІ ІНТЕРФЕЙСУ
+    // 2. СТИЛІ ІНТЕРФЕЙСУ (З ОПТИМІЗАЦІЄЮ ПІД СЕНСОР/ТАЧ)
     // =============================================================
 
     function injectStyles() {
@@ -65,35 +63,65 @@
         $('head').append(`
             <style id="music-plugin-styles">
                 .music-modal-content {
-                    padding: 20px;
+                    padding: 20px 15px;
                     text-align: center;
                     color: #ffffff;
+                    max-height: 80vh;
+                    overflow-y: auto;
+                    -webkit-overflow-scrolling: touch; /* Гладкий скролл пальцем на iOS/Android */
+                    user-select: none;
+                    -webkit-user-select: none;
                 }
+
                 .music-btn {
                     display: inline-block;
-                    background: rgba(255, 255, 255, 0.1);
-                    border: 1px solid rgba(255, 255, 255, 0.2);
+                    background: rgba(255, 255, 255, 0.12);
+                    border: 1px solid rgba(255, 255, 255, 0.25);
                     color: #ffffff;
-                    padding: 12px 24px;
-                    border-radius: 8px;
-                    margin: 10px 5px;
+                    padding: 14px 24px; /* Збільшена зона тапу для пальців */
+                    min-height: 48px;   /* Стандарт висоти для тач-інтерфейсів */
+                    border-radius: 10px;
+                    margin: 8px 5px;
                     cursor: pointer;
-                    font-size: 15px;
-                    transition: all 0.2s ease;
+                    font-size: 16px;
+                    font-weight: 500;
+                    box-sizing: border-box;
+                    touch-action: manipulation; /* Прибирає затримку 300ms при тапі на мобільних */
+                    -webkit-tap-highlight-color: transparent; /* Прибирає синій квадрат під час тапу */
+                    transition: background 0.15s ease, transform 0.1s ease;
                 }
-                .music-btn.focus, .music-btn:hover {
+
+                /* Для пульта TV (focus) та для мишки (hover) */
+                .music-btn.focus, 
+                .music-btn:hover {
                     background: #e50914;
                     border-color: #e50914;
                     color: #ffffff;
-                    transform: scale(1.03);
                 }
+
+                /* Ефект натискання пальцем на екрані смартфона */
+                .music-btn:active {
+                    transform: scale(0.96);
+                    background: #b20710;
+                }
+
                 .music-token-info {
-                    background: rgba(255, 255, 255, 0.05);
+                    background: rgba(255, 255, 255, 0.07);
                     border-radius: 8px;
                     padding: 12px;
                     margin-bottom: 15px;
                     word-break: break-all;
                     font-family: monospace;
+                    font-size: 14px;
+                }
+
+                /* Адаптація під вузькі дисплеї телефонів */
+                @media screen and (max-width: 480px) {
+                    .music-btn {
+                        width: 100%;
+                        display: block;
+                        margin: 8px 0;
+                    }
                 }
             </style>
         `);
@@ -107,7 +135,6 @@
         injectStyles();
         var token = getToken();
 
-        // ГОЛОВНЕ ВИПРАВЛЕННЯ: Елемент створюється як jQuery-об'єкт $(...)
         var $html =$('<div class="music-modal-content"></div>');
 
         if (!token) {
@@ -137,22 +164,29 @@
             `);
         }
 
-        // Обробка натискання кнопок
-        $html.find('.btn-enter-token').on('click', function () {
+        // Універсальна обробка тапу/кліку
+        function bindTouchAction($element, handler) {$element.on('click pointerdown', function (e) {
+                if (e.type === 'pointerdown' && e.pointerType !== 'touch') return;
+                e.preventDefault();
+                e.stopPropagation();
+                handler();
+            });
+        }
+
+        bindTouchAction($html.find('.btn-enter-token'), function () {
             Lampa.Modal.close();
             promptToken(function () {
-                openPlayerModal(); // Перевідкриваємо модалку після збереження
+                openPlayerModal();
             });
         });
 
-        $html.find('.btn-start-play').on('click', function () {
+        bindTouchAction($html.find('.btn-start-play'), function () {
             Lampa.Noty.show('Запуск відтворення...');
         });
 
-        // Відкриття модального вікна Lampa
         Lampa.Modal.open({
             title: 'Музика',
-            html: $html, // Передаємо саме jQuery об'єкт
+            html: $html,
             size: 'medium',
             onBack: function () {
                 Lampa.Modal.close();
@@ -160,7 +194,6 @@
             }
         });
 
-        // Налаштування контролера для навігації пульта TV
         Lampa.Controller.add('music_modal_controller', {
             toggle: function () {
                 Lampa.Controller.collectionSet($html);
@@ -184,14 +217,14 @@
     }
 
     // =============================================================
-    // 4. ДОДАВАННЯ АКТИВНИХ КНОПОК В ІНТЕРФЕЙС LAMPA
+    // 4. КНОПКИ В МЕНЮ ТА ШАПЦІ ДЛЯ ТАЧ-УПРАВЛІННЯ
     // =============================================================
 
     function injectMenuButton() {
         var $menu =$('.menu .menu__list, .sidebar .sidebar__list');
         if ($menu.length && !$menu.find('[data-action="music_plugin"]').length) {
             var $item =$(`
-                <div class="menu__item selector" data-action="music_plugin" tabindex="0">
+                <div class="menu__item selector" data-action="music_plugin" tabindex="0" style="touch-action: manipulation; -webkit-tap-highlight-color: transparent;">
                     <div class="menu__ico">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
                             <path d="M9 18V5l12-2v13M9 9l12-2"/>
@@ -201,7 +234,8 @@
                 </div>
             `);
 
-            $item.on('click', function () {
+            $item.on('click pointerdown', function (e) {
+                if (e.type === 'pointerdown' && e.pointerType !== 'touch') return;
                 openPlayerModal();
             });
 
@@ -213,14 +247,15 @@
         var $head =$('.head .head__actions');
         if ($head.length && !$head.find('.head-music-btn').length) {
             var $headBtn =$(`
-                <div class="head__action selector head-music-btn" tabindex="0" title="Музика">
+                <div class="head__action selector head-music-btn" tabindex="0" title="Музика" style="touch-action: manipulation; -webkit-tap-highlight-color: transparent;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
                         <path d="M9 18V5l12-2v13M9 9l12-2"/>
                     </svg>
                 </div>
             `);
 
-            $headBtn.on('click', function () {
+            $headBtn.on('click pointerdown', function (e) {
+                if (e.type === 'pointerdown' && e.pointerType !== 'touch') return;
                 openPlayerModal();
             });
 
@@ -231,7 +266,6 @@
     function startPlugin() {
         initSettings();
 
-        // Додаємо кнопки при завантаженні та відкритті меню/шапки
         Lampa.Listener.follow('app', function (e) {
             if (e.type === 'ready') {
                 injectMenuButton();
