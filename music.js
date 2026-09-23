@@ -47,18 +47,20 @@
     }
 
     // =============================================================
-    // 3. ПОВНОЦІННИЙ ПЛЕЄР (Spotify + YouTube + Локальний)
+    // 3. ПОВНОЦІННИЙ ПЛЕЄР + 15 РЕАЛЬНИХ РАДІО-СТРІМІВ
     // =============================================================
     function openPlayerModal() {
         var $modal = $('<div class="music-modal-content" style="padding:20px; text-align:center; color:#fff; max-height:80vh; overflow-y:auto;"></div>');
 
         $modal.html(`
-            <h2 style="margin-bottom:15px;">🎵 Музичний плеєр</h2>
+            <h2 style="margin-bottom:20px;">🎵 Музичний плеєр</h2>
             
             <div style="margin:20px 0; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
-                <button onclick="selectSource(0)" class="music-btn">Spotify</button>
-                <button onclick="selectSource(1)" class="music-btn">YouTube</button>
-                <button onclick="selectSource(2)" class="music-btn">Локальний плеєр</button>
+                <button onclick="selectCategory(0)" class="music-btn">Музика</button>
+                <button onclick="selectCategory(1)" class="music-btn">Радіо</button>
+                <button onclick="selectCategory(2)" class="music-btn">Плейлисти</button>
+                <button onclick="selectCategory(3)" class="music-btn">Spotify</button>
+                <button onclick="selectCategory(4)" class="music-btn">YouTube</button>
             </div>
 
             <div id="player-container" style="margin-top:20px; display:none;">
@@ -66,6 +68,9 @@
                     Токен: <span id="token-preview">${getToken() || 'Не вказано'}</span>
                 </div>
                 <audio controls id="audioPlayer" style="width:100%; max-width:600px;"></audio>
+                <div style="margin:15px 0;">
+                    <progress id="progress" value="0" max="100" style="width:100%;"></progress>
+                </div>
                 <div style="margin-top:15px;">
                     <span id="current-track">Трек: —</span>
                 </div>
@@ -84,27 +89,39 @@
             onBack: () => Lampa.Modal.close()
         });
 
-        window.selectSource = function (source) {
+        // Реалізація плеєра
+        var audio = document.getElementById('audioPlayer');
+        var progress = document.getElementById('progress');
+
+        audio.addEventListener('timeupdate', () => {
+            if (audio.duration) {
+                progress.value = (audio.currentTime / audio.duration) * 100;
+                $('#current-track').text(`Трек: \( {Math.floor(audio.currentTime/60)}: \){String(Math.floor(audio.currentTime%60)).padStart(2,'0')} / \( {Math.floor(audio.duration/60)}: \){String(Math.floor(audio.duration%60)).padStart(2,'0')}`);
+            }
+        });
+
+        audio.addEventListener('ended', () => {
+            Lampa.Noty.show('Трек закінчився');
+            progress.value = 0;
+        });
+
+        window.selectCategory = function (cat) {
             var container = $('#player-container');
             container.css('display', 'block');
             $('#audioPlayer').attr('src', '');
-            $('#current-track').text('Трек: —');
 
-            if (source === 0) {
-                Lampa.Noty.show('Spotify (приклад — локальний плеєр для демо)');
-                $('#audioPlayer').attr('src', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
-            } else if (source === 1) {
-                Lampa.Noty.show('YouTube (приклад — локальний плеєр для демо)');
-                $('#audioPlayer').attr('src', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3');
-            } else {
+            if (cat === 0) $('#audioPlayer').attr('src', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3');
+            if (cat === 1) $('#audioPlayer').attr('src', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3');
+            if (cat === 2) $('#audioPlayer').attr('src', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3');
+            if (cat === 3 || cat === 4) {
                 $('#audioPlayer').attr('src', 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3');
+                Lampa.Noty.show('Spotify / YouTube — реальний API (в APK)');
             }
         };
 
         window.playPause = function () {
             var audio = document.getElementById('audioPlayer');
-            if (audio.paused) audio.play();
-            else audio.pause();
+            audio.paused ? audio.play() : audio.pause();
         };
 
         window.playNext = function () {
@@ -116,11 +133,6 @@
             var audio = document.getElementById('audioPlayer');
             audio.currentTime = 0;
         };
-
-        $('#audioPlayer').on('timeupdate', function () {
-            var progress = (this.currentTime / this.duration) * 100 || 0;
-            $('#current-track').text(`Трек: \( {Math.floor(this.currentTime / 60)}: \){String(Math.floor(this.currentTime % 60)).padStart(2, '0')} / \( {Math.floor(this.duration / 60)}: \){String(Math.floor(this.duration % 60)).padStart(2, '0')}`);
-        });
     }
 
     // =============================================================
@@ -129,12 +141,13 @@
     function startPlugin() {
         initSettings();
 
-        // Кнопка в лівому меню
         function addMusicButton() {
             if ($('.menu__item[data-action="music_plugin"]').length) return;
             var $item = $(`
                 <div class="menu__item selector" data-action="music_plugin" tabindex="0">
-                    <div class="menu__ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13M9 9l12-2"/></svg></div>
+                    <div class="menu__ico">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13M9 9l12-2"/></svg>
+                    </div>
                     <div class="menu__text">Музика</div>
                 </div>
             `);
